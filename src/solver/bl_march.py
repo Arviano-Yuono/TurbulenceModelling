@@ -45,7 +45,7 @@ class BoundaryLayerSolver:
             Cf = 0.246 * Re_theta**(-0.268) * 10**(-0.678 * H)
             dthetads = Cf / 2 - theta / Ue * (2 + H) * dUeds
             F1 = 0.0306 * (H1 - 3)**(-0.6169)
-            dHds = (F1 - H1 * (theta * dUeds / Ue + dthetads)) / (theta * dH1dH + 1e-6)  # Avoid division by zero
+            dHds = (F1 - H1 * (theta * dUeds / Ue + dthetads)) / (theta * dH1dH)  # Avoid division by zero
             return np.array([dthetads, dHds])
 
         def green_method_rhs(s, thetaHF, Ue, dUeds, nu):
@@ -66,11 +66,11 @@ class BoundaryLayerSolver:
             if F is None:
                 F = FEQ
             
-            dthetads = Cf - (H + 2) * theta / Ue * dUeds
+            dthetads = Cf / 2 - theta / Ue * (2 + H) * dUeds
             dHds = 1 / theta * dHdH1 * (F - H1 * (theta * dUeds / Ue + dthetads))
             dFds = (F**2 + 0.02 * F + 0.2667 * Cf0) / (F + 0.01) * (
                 2.8 / (theta * (H1 + H)) * ((0.32 * Cf0 + 0.024 * FEQ + 1.2 * FEQ**2)**(0.5) - (0.32 * Cf0 + 0.024 * F + 1.2 * F**2)**(0.5))
-                + 1 / theta * thetapUtdUedxEQ - 1 / Ue * dUeds
+                + 1 / (theta + 1e-6) * thetapUtdUedxEQ - 1 / (Ue + 1e-6) * dUeds
             )
             
             return np.array([dthetads, dHds, dFds])
@@ -85,6 +85,7 @@ class BoundaryLayerSolver:
         N = 2 * body.N
         mid = body.stagnation_index
         U_e = body.U_e
+        
         XB, YB = body.XB, body.YB
         nu = freestream.nu
         mu = freestream.viscosity
@@ -110,6 +111,9 @@ class BoundaryLayerSolver:
                 stagnation_s = s[mid-1] + (-U_e[mid-1] / (U_e[mid] - U_e[mid-1])) * (s[mid] - s[mid-1])
         else:
             stagnation_s = s[mid]
+        
+        # U_e[mid] = 0
+        # stagnation_s = s[mid]
 
         s = s - stagnation_s  # Shift s to have stagnation point at 0
         
@@ -136,22 +140,22 @@ class BoundaryLayerSolver:
         # Compute momentum thickness (theta) and corresponding parameter (lambda)
         lower_integral = lower_U_e[0]**5 / 2 * (lower_s[0]) 
         
-        lower_theta_squared = 0.45 * nu / lower_U_e[0]**6 * lower_integral if lower_U_e[0] > epsilon else 0
+        lower_theta_squared = 0.45 * nu / lower_U_e[0]**6 * lower_integral
         lower_theta[0] = np.sqrt(lower_theta_squared)
         
-        lower_lambda[0] = lower_theta_squared / nu * (lower_U_e[0] - 0) / lower_s[0] if lower_s[0] > epsilon else 0
+        lower_lambda[0] = lower_theta_squared / nu * (lower_U_e[0] - 0) / lower_s[0]
         
         for i in range(1, lower_N-1):
             lower_integral += 0.5 * (lower_U_e[i]**5 + lower_U_e[i-1]**5) * (lower_s[i] - lower_s[i-1])
             
-            lower_theta_squared = 0.45 * nu / lower_U_e[i]**6 * lower_integral if lower_U_e[i] > epsilon else 0
+            lower_theta_squared = 0.45 * nu / lower_U_e[i]**6 * lower_integral
             lower_theta[i] = np.sqrt(lower_theta_squared)
             
             lower_lambda[i] = lower_theta_squared / nu * 0.5 * ((lower_U_e[i] - lower_U_e[i-1]) / (lower_s[i] - lower_s[i-1]) + (lower_U_e[i+1] - lower_U_e[i]) / (lower_s[i+1] - lower_s[i]))
             
         lower_integral += 0.5 * (lower_U_e[-1]**5 + lower_U_e[-2]**5) * (lower_s[-1] - lower_s[-2])
         
-        lower_theta_squared = 0.45 * nu / lower_U_e[-1]**6 * lower_integral if lower_U_e[-1] > epsilon else 0
+        lower_theta_squared = 0.45 * nu / lower_U_e[-1]**6 * lower_integral
         lower_theta[-1] = np.sqrt(lower_theta_squared)
         
         lower_lambda[-1] = lower_theta_squared / nu * (lower_U_e[-1] - lower_U_e[-2]) / (lower_s[-1] - lower_s[-2])
@@ -163,27 +167,29 @@ class BoundaryLayerSolver:
         
         lower_delta_star = lower_H * lower_theta
         lower_tau_w = mu * lower_U_e / lower_theta * lower_S
+        lower_cf = lower_tau_w / (0.5 * freestream.density * freestream.U_inf**2)
+        
         
         # --- Upper Surface (Laminar) ---
         # Compute momentum thickness (theta) and corresponding parameter (lambda)
         upper_integral = upper_U_e[0]**5 / 2 * (upper_s[0])
         
-        upper_theta_squared = 0.45 * nu / upper_U_e[0]**6 * upper_integral if upper_U_e[0] > epsilon else 0
+        upper_theta_squared = 0.45 * nu / upper_U_e[0]**6 * upper_integral
         upper_theta[0] = np.sqrt(upper_theta_squared)
         
-        upper_lambda[0] = upper_theta_squared / nu * (upper_U_e[0] - 0) / upper_s[0] if upper_s[0] > epsilon else 0
+        upper_lambda[0] = upper_theta_squared / nu * (upper_U_e[0] - 0) / upper_s[0]
         
         for i in range(1, upper_N-1):
             upper_integral += 0.5 * (upper_U_e[i]**5 + upper_U_e[i-1]**5) * (upper_s[i] - upper_s[i-1])
             
-            upper_theta_squared = 0.45 * nu / upper_U_e[i]**6 * upper_integral if upper_U_e[i] > epsilon else 0
+            upper_theta_squared = 0.45 * nu / upper_U_e[i]**6 * upper_integral
             upper_theta[i] = np.sqrt(upper_theta_squared)
             
             upper_lambda[i] = upper_theta_squared / nu * 0.5 * ((upper_U_e[i] - upper_U_e[i-1]) / (upper_s[i] - upper_s[i-1]) + (upper_U_e[i+1] - upper_U_e[i]) / (upper_s[i+1] - upper_s[i]))
             
         upper_integral += 0.5 * (upper_U_e[-1]**5 + upper_U_e[-2]**5) * (upper_s[-1] - upper_s[-2])
         
-        upper_theta_squared = 0.45 * nu / upper_U_e[-1]**6 * upper_integral if upper_U_e[-1] > epsilon else 0
+        upper_theta_squared = 0.45 * nu / upper_U_e[-1]**6 * upper_integral
         upper_theta[-1] = np.sqrt(upper_theta_squared)
         
         upper_lambda[-1] = upper_theta_squared / nu * (upper_U_e[-1] - upper_U_e[-2]) / (upper_s[-1] - upper_s[-2])
@@ -195,6 +201,7 @@ class BoundaryLayerSolver:
         
         upper_delta_star = upper_H * upper_theta
         upper_tau_w = mu * upper_U_e / upper_theta * upper_S
+        upper_cf = upper_tau_w / (0.5 * freestream.density * freestream.U_inf**2)
         
         # Check for transition points with Michel's criterion
         lower_re_s = lower_U_e * lower_s / nu
@@ -207,13 +214,26 @@ class BoundaryLayerSolver:
         upper_transition_index = upper_N
         
         for i in range(lower_N):
-            if (lower_re_s[i] > 0 and lower_re_theta[i] > 2.8 * lower_re_s[i]**0.4) or lower_lambda[i] < -0.09:
+            if (lower_re_s[i] > 0 and lower_re_theta[i] >= 1.174 * (1 + 22400 / lower_re_s[i]) * lower_re_s[i]**0.46) :
                 lower_transition_index = i
                 break
             
         for i in range(upper_N):
-            if (upper_re_s[i] > 0 and upper_re_theta[i] > 2.8 * upper_re_s[i]**0.4) or upper_lambda[i] < -0.09:
+            if (upper_re_s[i] > 0 and upper_re_theta[i] >= 1.174 * (1 + 22400 / upper_re_s[i]) * upper_re_s[i]**0.46) :
                 upper_transition_index = i
+                break
+        
+        
+        lower_laminar_separation_index = lower_N - 1
+        for i in range(lower_N):
+            if (lower_lambda[i] < -0.09):
+                lower_laminar_separation_index = i
+                break
+            
+        upper_laminar_separation_index = upper_N - 1
+        for i in range(upper_N):
+            if (upper_lambda[i] < -0.09):
+                upper_laminar_separation_index = i
                 break
     
         # Starts the turbulent boundary layer calculations
@@ -224,6 +244,7 @@ class BoundaryLayerSolver:
         lower_H_turbulent = np.copy(lower_H)
         lower_delta_star_turbulent = np.copy(lower_delta_star)
         lower_tau_w_turbulent = np.copy(lower_tau_w)
+        lower_cf_turbulent = np.copy(lower_cf)
         
         # At the transition point (lower_transition_index), impose initial conditions based on AerocalPak4
         lower_theta_turbulent[lower_transition_index] = lower_theta[lower_transition_index] # No change in theta
@@ -256,10 +277,12 @@ class BoundaryLayerSolver:
                 lower_delta_star_turbulent[i] = lower_H_turbulent[i] * lower_theta_turbulent[i]
                 
                 cf = 0.246 * (lower_re_theta[i]**(-0.268)) * 10**(-0.678 * lower_H_turbulent[i])
+                lower_cf_turbulent[i] = cf
                 lower_tau_w_turbulent[i] = cf * 0.5 * freestream.density * lower_U_e[i]**2
         elif self.turbulent_methods == "green":
             lower_F_turbulent = np.zeros(lower_N)
-            
+            lower_delta = np.copy(lower_delta_star)
+                        
             for i in range(lower_transition_index + 1, lower_N):
                 if i == lower_transition_index + 1:
                     # Initialize F at the transition point
@@ -295,6 +318,11 @@ class BoundaryLayerSolver:
                 cf0 = 0.01013 / (np.log10(Re_theta) - 1.02) - 0.00075
                 H0 = 1 / (1 - 6.55 * np.sqrt(cf0 / 2))
                 cf = cf0 * (0.9 / (lower_H_turbulent[i] / H0 - 0.4) - 0.5)
+                
+                H1 = 3.15 + 1.72 / (lower_H_turbulent[i] - 1) - 0.01 * (lower_H_turbulent[i] - 1)**2
+                lower_delta[i] = lower_theta_turbulent[i] * (H1 + lower_H_turbulent[i])
+                
+                lower_cf_turbulent[i] = cf
                 lower_tau_w_turbulent[i] = cf * 0.5 * freestream.density * lower_U_e[i]**2
             
         # --- Turbulent Boundary Layer (Upper Surface) ---
@@ -303,6 +331,7 @@ class BoundaryLayerSolver:
         upper_H_turbulent = np.copy(upper_H)
         upper_delta_star_turbulent = np.copy(upper_delta_star)
         upper_tau_w_turbulent = np.copy(upper_tau_w)
+        upper_cf_turbulent = np.copy(upper_cf)
 
         # At the transition point (upper_transition_index), impose initial conditions based on AerocalPak4
         upper_theta_turbulent[upper_transition_index] = upper_theta[upper_transition_index] # No change in theta
@@ -336,8 +365,10 @@ class BoundaryLayerSolver:
 
                 cf = 0.246 * (upper_re_theta[i]**(-0.268)) * 10**(-0.678 * upper_H_turbulent[i])
                 upper_tau_w_turbulent[i] = cf * 0.5 * freestream.density * upper_U_e[i]**2
+                upper_cf_turbulent[i] = cf
         elif self.turbulent_methods == "green":
             upper_F_turbulent = np.zeros(upper_N)
+            upper_delta = np.copy(upper_delta_star)
 
             for i in range(upper_transition_index + 1, upper_N):
                 if i == upper_transition_index + 1:
@@ -373,8 +404,14 @@ class BoundaryLayerSolver:
                 Re_theta = upper_U_e[i] * upper_theta_turbulent[i] / nu
                 cf0 = 0.01013 / (np.log10(Re_theta) - 1.02) - 0.00075
                 H0 = 1 / (1 - 6.55 * np.sqrt(cf0 / 2))
+                
                 cf = cf0 * (0.9 / (upper_H_turbulent[i] / H0 - 0.4) - 0.5)
+                
+                H1 = 3.15 + 1.72 / (upper_H_turbulent[i] - 1) - 0.01 * (upper_H_turbulent[i] - 1)**2
+                upper_delta[i] = upper_theta_turbulent[i] * (H1 + upper_H_turbulent[i])
+                
                 upper_tau_w_turbulent[i] = cf * 0.5 * freestream.density * upper_U_e[i]**2
+                upper_cf_turbulent[i] = cf
         
         # Combine the results for both surfaces
         full_theta = np.zeros(N)
@@ -394,8 +431,15 @@ class BoundaryLayerSolver:
         full_tau_w[lower_N:] = upper_tau_w_turbulent
         
         # Transition indices
-        full_transition_index_lower = lower_transition_index
+        full_transition_index_lower = lower_N - lower_transition_index
         full_transition_index_upper = upper_transition_index + lower_N
+        
+        full_laminar_separation_index_lower = lower_N - lower_laminar_separation_index
+        full_laminar_separation_index_upper = upper_laminar_separation_index + lower_N
+        
+        full_cf = np.zeros(N)
+        full_cf[:lower_N] = lower_cf_turbulent[::-1]
+        full_cf[lower_N:] = upper_cf_turbulent
 
         # theta = np.zeros(N)
         # delta_star = np.zeros(N)        
@@ -472,4 +516,4 @@ class BoundaryLayerSolver:
         #     theta[i], H[i] = thetaH_new
         #     delta_star[i] = H[i] * theta[i]
 
-        return full_theta, full_delta_star, full_H, full_transition_index_lower, full_transition_index_upper
+        return full_theta, full_delta_star, full_H, full_cf, full_transition_index_lower, full_transition_index_upper, full_laminar_separation_index_lower, full_laminar_separation_index_upper
