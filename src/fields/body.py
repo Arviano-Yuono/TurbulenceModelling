@@ -60,11 +60,12 @@ class Body:
         if self.boundary_layer is not None and self.boundary_layer.delta_star is not None:
             n_partial = len(self.boundary_layer.delta_star)
             delta_star_full[:n_partial] = self.boundary_layer.delta_star
+            
         displacement_sign = np.ones_like(delta_star_full)
         displacement_sign[:self.stagnation_index] = -1  # Flip for lower surface (reverse indexing)
 
-        Xc_disp = Xc + displacement_sign * delta_star_full * nx
-        Yc_disp = Yc + displacement_sign * delta_star_full * ny
+        Xc_disp = Xc + delta_star_full * nx
+        Yc_disp = Yc + delta_star_full * ny
 
         # Rebuild new boundary nodes
         XB_new = np.zeros_like(self.XB)
