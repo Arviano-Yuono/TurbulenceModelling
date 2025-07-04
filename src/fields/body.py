@@ -54,30 +54,40 @@ class Body:
         ty = dY / lengths
         nx = -ty
         ny = tx
-
-        # Pad delta_star to match the number of panels for displacement
-        delta_star_full = np.zeros_like(Xc)
-        if self.boundary_layer is not None and self.boundary_layer.delta_star is not None:
-            n_partial = len(self.boundary_layer.delta_star)
-            delta_star_full[:n_partial] = self.boundary_layer.delta_star
+        
+        delta_bl = self.boundary_layer.delta_star if self.boundary_layer is not None else np.zeros_like(Xc)
+        
+        # Project delta_star onto the panel normals
+        delta_bl_x = delta_bl * nx
+        delta_bl_y = delta_bl * ny
+        
+        # # Pad delta_star to match the number of panels for displacement
+        # delta_star_full = np.zeros_like(Xc)
+        # if self.boundary_layer is not None and self.boundary_layer.delta_star is not None:
+        #     n_partial = len(self.boundary_layer.delta_star)
+        #     delta_star_full[:n_partial] = self.boundary_layer.delta_star
             
-        displacement_sign = np.ones_like(delta_star_full)
-        displacement_sign[:self.stagnation_index] = -1  # Flip for lower surface (reverse indexing)
+        # displacement_sign = np.ones_like(delta_star_full)
+        # displacement_sign[:self.stagnation_index] = -1  # Flip for lower surface (reverse indexing)
 
-        Xc_disp = Xc + delta_star_full * nx
-        Yc_disp = Yc + delta_star_full * ny
+        # Xc_disp = Xc + delta_star_full * nx
+        # Yc_disp = Yc + delta_star_full * ny
+        
+        Xc_disp = Xc + delta_bl_x
+        Yc_disp = Yc + delta_bl_y
 
         # Rebuild new boundary nodes
         XB_new = np.zeros_like(self.XB)
         YB_new = np.zeros_like(self.YB)
-        XB_new[0] = 2 * Xc_disp[0] - Xc_disp[1]
-        YB_new[0] = 2 * Yc_disp[0] - Yc_disp[1]
-        XB_new[-1] = 2 * Xc_disp[-1] - Xc_disp[-2]
-        YB_new[-1] = 2 * Yc_disp[-1] - Yc_disp[-2]
 
         for i in range(1, len(self.XB) - 1):
             XB_new[i] = 0.5 * (Xc_disp[i - 1] + Xc_disp[i])
             YB_new[i] = 0.5 * (Yc_disp[i - 1] + Yc_disp[i])
+            
+        XB_new[0] = 2 * Xc_disp[0] - XB_new[1]
+        YB_new[0] = 2 * Yc_disp[0] - YB_new[1]
+        XB_new[-1] = 2 * Xc_disp[-1] - XB_new[-2]
+        YB_new[-1] = 2 * Yc_disp[-1] - YB_new[-2]
 
         return XB_new, YB_new
     
