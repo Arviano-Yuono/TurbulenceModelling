@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.integrate import solve_ivp
 from src.fields.body import Body
 from src.fields.freestream import Freestream
 
@@ -22,16 +23,7 @@ class BoundaryLayerSolver:
 
     def solve(self, body: Body, freestream: Freestream):
         """
-        Solve boundary layer flow over a body by marching method.
-        """
-        if self.laminar_methods == "thwaites":
-            return self.solve_laminar_boundary_layer(body, freestream)
-        else:
-            raise NotImplementedError("Only Thwaites method is implemented for laminar flow.")
-
-    def solve_laminar_boundary_layer(self, body: Body, freestream: Freestream):
-        """
-        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites’ method.
+        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites' method.
         """
         def head_method_rhs(s, thetaH, Ue, dUeds, nu):
             theta, H = thetaH
