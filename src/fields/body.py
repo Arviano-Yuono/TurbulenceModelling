@@ -79,3 +79,7 @@ class Body:
             YB_new[i] = 0.5 * (Yc_disp[i - 1] + Yc_disp[i])
 
         return XB_new, YB_new
+    
+    def update_geometry(self, XB_new: np.ndarray, YB_new: np.ndarray):
+        self.XB = XB_new
+        self.YB = YB_new
