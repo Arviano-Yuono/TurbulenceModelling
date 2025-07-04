@@ -32,19 +32,30 @@ def generate_naca4(series: str, N: int, cosine_spacing: bool = True, closed_te: 
         - (0.1036 if closed_te else 0.1015) * x**4
     )
 
-    yc = np.where(x < p,
-                  m / p**2 * (2 * p * x - x**2),
-                  m / (1 - p)**2 * ((1 - 2 * p) + 2 * p * x - x**2))
+    # yc = np.where(x < p,
+    #               m / p**2 * (2 * p * x - x**2),
+    #               m / (1 - p)**2 * ((1 - 2 * p) + 2 * p * x - x**2))
 
-    dyc_dx = np.where(x < p,
-                      2 * m / p**2 * (p - x),
-                      2 * m / (1 - p)**2 * (p - x))
+    # dyc_dx = np.where(x < p,
+    #                   2 * m / p**2 * (p - x),
+    #                   2 * m / (1 - p)**2 * (p - x))
+    yc = np.zeros_like(x)
+    dyc_dx = np.zeros_like(x)
+    
+    for i, xi in enumerate(x):
+        if xi < p:
+            yc[i] = m / p**2 * (2 * p * xi - xi**2)
+            dyc_dx[i] = 2 * m / p**2 * (p - xi)
+        else:
+            yc[i] = m / (1 - p)**2 * ((1 - 2 * p) + 2 * p * xi - xi**2)
+            dyc_dx[i] = 2 * m / (1 - p)**2 * (p - xi)
 
     theta = np.arctan(dyc_dx)
 
     xu = x - yt * np.sin(theta)
-    yu = yc + yt * np.cos(theta)
     xl = x + yt * np.sin(theta)
+    
+    yu = yc + yt * np.cos(theta)
     yl = yc - yt * np.cos(theta)
 
     x_coords = np.concatenate([xl[::-1], xu[1:]])
