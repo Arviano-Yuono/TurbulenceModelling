@@ -22,19 +22,14 @@ class BoundaryLayerSolver:
 
     def solve(self, body: Body, freestream: Freestream):
         """
-        Solve boundary layer flow over a body by marching method.
-        """
-        if self.laminar_methods == "thwaites":
-            return self.solve_laminar_boundary_layer(body, freestream)
-        else:
-            raise NotImplementedError("Only Thwaites method is implemented for laminar flow.")
-
-    def solve_laminar_boundary_layer(self, body: Body, freestream: Freestream):
-        """
-        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites’ method.
+        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites' method.
         """
         def head_method_rhs(s, thetaH, Ue, dUeds, nu):
             theta, H = thetaH
+
+            # Safeguard against H dropping into unstable region
+            H = max(1.101, H)
+
             if H <= 1.6:
                 H1 = 3.3 + 0.8234 * (H - 1.1)**(-1.287)
                 dH1dH = -1.287 * 0.8234 * (H - 1.1)**(-2.287)
