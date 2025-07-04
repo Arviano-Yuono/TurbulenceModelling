@@ -23,8 +23,16 @@ class BoundaryLayerSolver:
 
     def solve(self, body: Body, freestream: Freestream):
         """
-        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites' method.
+        Solve boundary layer flow over a body by marching method.
         """
+        if self.laminar_methods == "thwaites":
+            return self.solve_laminar_boundary_layer(body, freestream)
+        else:
+            raise NotImplementedError("Only Thwaites method is implemented for laminar flow.")
+
+    def solve_laminar_boundary_layer(self, body: Body, freestream: Freestream):
+        """
+        Compute θ, δ*, H, and transition index for both upper and lower surfaces using Thwaites’ method.        """
         def head_method_rhs(s, thetaH, Ue, dUeds, nu):
             theta, H = thetaH
             if H <= 1.6:
@@ -37,7 +45,7 @@ class BoundaryLayerSolver:
             Cf = 0.246 * Re_theta**(-0.268) * 10**(-0.678 * H)
             dthetads = Cf / 2 - theta / Ue * (2 + H) * dUeds
             F1 = 0.0306 * (H1 - 3)**(-0.6169)
-            dHds = (F1 - H1 * (theta * dUeds / Ue + dthetads)) / (theta * dH1dH)
+            dHds = (F1 - H1 * (theta * dUeds / Ue + dthetads)) / (theta * dH1dH + 1e-6)  # Avoid division by zero
             return np.array([dthetads, dHds])
 
         def green_method_rhs(s, thetaHF, Ue, dUeds, nu):
@@ -280,6 +288,8 @@ class BoundaryLayerSolver:
                 lower_theta_turbulent[i] = lower_theta_turbulent[i-1] + (h / 6) * (K_1[0] + 2 * K_2[0] + 2 * K_3[0] + K_4[0])
                 lower_H_turbulent[i] = lower_H_turbulent[i-1] + (h / 6) * (K_1[1] + 2 * K_2[1] + 2 * K_3[1] + K_4[1])
                 lower_F_turbulent[i] = lower_F_turbulent[i-1] + (h / 6) * (K_1[2] + 2 * K_2[2] + 2 * K_3[2] + K_4[2])
+                
+                lower_F_turbulent[i] = np.max([lower_F_turbulent[i], -0.009])  # Ensure F is not negative
                          
                 Re_theta = lower_U_e[i] * lower_theta_turbulent[i] / nu
                 cf0 = 0.01013 / (np.log10(Re_theta) - 1.02) - 0.00075
@@ -357,6 +367,8 @@ class BoundaryLayerSolver:
                 upper_theta_turbulent[i] = upper_theta_turbulent[i-1] + (h / 6) * (K_1[0] + 2 * K_2[0] + 2 * K_3[0] + K_4[0])
                 upper_H_turbulent[i] = upper_H_turbulent[i-1] + (h / 6) * (K_1[1] + 2 * K_2[1] + 2 * K_3[1] + K_4[1])
                 upper_F_turbulent[i] = upper_F_turbulent[i-1] + (h / 6) * (K_1[2] + 2 * K_2[2] + 2 * K_3[2] + K_4[2])
+                
+                upper_F_turbulent[i] = np.max([upper_F_turbulent[i], -0.009])  # Ensure F is not negative
                 
                 Re_theta = upper_U_e[i] * upper_theta_turbulent[i] / nu
                 cf0 = 0.01013 / (np.log10(Re_theta) - 1.02) - 0.00075
